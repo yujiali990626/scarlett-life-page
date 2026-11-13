@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Scarlett 的小助理主页</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef7f6;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f2a44}
+.box{background:#fff;padding:32px 28px;border-radius:16px;box-shadow:0 6px 24px rgba(30,90,80,.12);width:min(340px,86vw)}
+h1{font-size:20px;margin:0 0 6px;text-align:center}p{font-size:13px;color:#6b7590;margin:0 0 18px;text-align:center}
+input[type=password]{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cfd6e6;border-radius:10px;font-size:16px}
+label{display:flex;gap:6px;align-items:center;font-size:13px;color:#4a5570;margin:12px 0}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:#39C5BB;color:#fff;font-size:16px;cursor:pointer}
+button:disabled{opacity:.6}#msg{min-height:20px;font-size:13px;margin-top:10px;text-align:center;color:#c0392b}
+#msg.ok{color:#39C5BB}
+</style></head><body>
+<form class="box" id="f" autocomplete="off">
+<h1>Scarlett 的小助理主页</h1><p>请输入访问密码</p>
+<input type="password" id="pw" placeholder="密码" aria-label="密码" autofocus>
+<label><input type="checkbox" id="rm">在此设备上记住密码</label>
+<button id="go" type="submit">进入</button><div id="msg"></div>
+</form>
+<script>
+const M={"v":1,"iter":600000,"salt":"ttyflnqHhBZ09aMY16XWVg==","check":{"iv":"ZPJ1IttTSwOMmbSB","ct":"I3BmlFQtTazT7hrNs7HVcwLGddATNYPpZDK1IBApCsA="},"iv":"IRQjxS9cIHEcydVE","size":76592,"gzip":true,"parts":["data-mwegwm2z-0.bin"]};const K='scarlett-life-key-'+M.salt;
+const u8=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const msg=(t,ok)=>{const m=document.getElementById('msg');m.textContent=t;m.className=ok?'ok':''};
+async function derive(pw,extractable){const b=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+return crypto.subtle.deriveKey({name:'PBKDF2',salt:u8(M.salt),iterations:M.iter,hash:'SHA-256'},b,{name:'AES-GCM',length:256},extractable,['decrypt']);}
+async function check(key){try{await crypto.subtle.decrypt({name:'AES-GCM',iv:u8(M.check.iv)},key,u8(M.check.ct));return true}catch(e){return false}}
+async function open(key){msg('密码正确，正在加载页面…',true);
+const bufs=await Promise.all(M.parts.map(p=>fetch(p,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(p);return r.arrayBuffer()})));
+const all=new Uint8Array(M.size);let o=0;for(const b of bufs){all.set(new Uint8Array(b),o);o+=b.byteLength}
+let pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u8(M.iv)},key,all);
+if(M.gzip)pt=await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+const html=new TextDecoder().decode(pt);document.open();document.write(html);document.close();}
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const go=document.getElementById('go');go.disabled=true;msg('正在验证…',true);
+try{const rm=document.getElementById('rm').checked;const key=await derive(document.getElementById('pw').value,rm);
+if(!await check(key)){msg('密码错误，请重试');go.disabled=false;return}
+if(rm){const raw=await crypto.subtle.exportKey('raw',key);localStorage.setItem(K,btoa(String.fromCharCode(...new Uint8Array(raw))))}
+await open(key)}catch(err){msg('加载失败：'+err.message);go.disabled=false}};
+(async()=>{const s=localStorage.getItem(K);if(!s)return;try{const key=await crypto.subtle.importKey('raw',u8(s),'AES-GCM',false,['decrypt']);
+if(await check(key))await open(key);else localStorage.removeItem(K)}catch(e){localStorage.removeItem(K)}})();
+</script></body></html>
